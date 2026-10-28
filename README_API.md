@@ -275,6 +275,36 @@ Returns all bundled anime avatars from the database. Each entry includes its num
 }
 ```
 
+### Random matchmaking
+`/api/matchmaking` requires a bearer token.
+
+- `POST /api/matchmaking` joins the FIFO queue and tries to match immediately. Returns `202` with `status: "waiting"` when no eligible partner is available, or `200` with `status: "matched"` and the conversation details.
+- `GET /api/matchmaking` checks for an active match or reports `waiting`/`idle`.
+- `DELETE /api/matchmaking` cancels a waiting queue entry. It does not end an active conversation.
+
+Match response shape:
+```json
+{
+  "success": true,
+  "data": {
+    "status": "matched",
+    "match": {
+      "id": 12,
+      "conversation_id": 34,
+      "partner": {
+        "public_id": "anon_ab12cd34ef56ab78",
+        "display_name": "New User",
+        "avatar_url": null,
+        "avatar_id": 2
+      },
+      "matched_at": "2026-10-29 12:34:56"
+    }
+  }
+}
+```
+
+Users whose `user_settings.allow_matching` is false receive `403 MATCHING_DISABLED`. The client can poll `GET /api/matchmaking` while waiting.
+
 ## Setup
 
 1. Copy `config/config.example.php` to `config/config.php` and configure DB credentials (defaults to `say_my_mind` database).

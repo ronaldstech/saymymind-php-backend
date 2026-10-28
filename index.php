@@ -28,9 +28,10 @@ require_once __DIR__ . '/src/Auth.php';
 require_once __DIR__ . '/src/Routes/AuthRoutes.php';
 require_once __DIR__ . '/src/Routes/ProfileRoutes.php';
 require_once __DIR__ . '/src/Routes/AvatarRoutes.php';
+require_once __DIR__ . '/src/Routes/MatchmakingRoutes.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
-    header('Allow: GET, POST, PATCH, OPTIONS');
+    header('Allow: GET, POST, PATCH, DELETE, OPTIONS');
     http_response_code(204);
     exit;
 }
@@ -101,6 +102,16 @@ if ($pathNorm === '/api/avatars') {
     } catch (Throwable $e) {
         error_log('Avatar catalog error: ' . $e->getMessage());
         Response::error(500, 'AVATAR_CATALOG_FAILED', 'Could not load avatars.');
+    }
+}
+
+if ($pathNorm === '/api/matchmaking') {
+    try {
+        $pdo = Database::connect($config);
+        MatchmakingRoutes::dispatch($pdo);
+    } catch (Throwable $e) {
+        error_log('Matchmaking database error: ' . $e->getMessage());
+        Response::error(503, 'DATABASE_UNAVAILABLE', 'Could not connect to the database.');
     }
 }
 
