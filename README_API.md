@@ -305,6 +305,37 @@ Match response shape:
 
 Users whose `user_settings.allow_matching` is false receive `403 MATCHING_DISABLED`. The client can poll `GET /api/matchmaking` while waiting.
 
+### Conversations
+`GET /api/conversations` requires a bearer token and lists conversations the authenticated user has joined, newest first. Each entry includes active participants and the latest non-deleted message, if any.
+
+Optional query parameters:
+- `limit` (positive integer, default `20`, maximum `100`)
+- `before_id` (positive conversation ID returned as `next_before_id` to fetch the next page)
+
+```json
+{
+  "success": true,
+  "data": {
+    "conversations": [
+      {
+        "id": 34,
+        "type": "random",
+        "status": "active",
+        "created_at": "2026-10-29 12:34:56",
+        "ended_at": null,
+        "participants": [
+          { "public_id": "anon_ab12cd34ef56ab78", "display_name": "New User", "avatar_url": null, "avatar_id": 2 }
+        ],
+        "last_message": null
+      }
+    ],
+    "pagination": { "limit": 20, "has_more": false, "next_before_id": null }
+  }
+}
+```
+
+Errors: `401 UNAUTHORIZED`, `422 INVALID_LIMIT`, `422 INVALID_BEFORE_ID`.
+
 ## Setup
 
 1. Copy `config/config.example.php` to `config/config.php` and configure DB credentials (defaults to `say_my_mind` database).
