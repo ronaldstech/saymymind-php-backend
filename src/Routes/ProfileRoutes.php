@@ -11,7 +11,7 @@ final class ProfileRoutes
 
         $stmt = $pdo->prepare(
             'SELECT u.id, u.public_id, u.account_role, u.status, u.created_at,
-                    p.username, p.display_name, p.avatar_url, p.bio, p.gender, p.age, p.country, p.updated_at
+                    p.username, p.display_name, p.avatar_url, p.avatar_id, p.bio, p.gender, p.age, p.country, p.updated_at
              FROM users u
              LEFT JOIN profiles p ON p.user_id = u.id
              WHERE u.id = ? LIMIT 1'
@@ -31,6 +31,7 @@ final class ProfileRoutes
                 'username' => $profile['username'] ?? null,
                 'display_name' => $profile['display_name'] ?? null,
                 'avatar_url' => $profile['avatar_url'] ?? null,
+                'avatar_id' => isset($profile['avatar_id']) ? (int)$profile['avatar_id'] : null,
                 'bio' => $profile['bio'] ?? null,
                 'gender' => $profile['gender'] ?? null,
                 'age' => isset($profile['age']) && $profile['age'] !== null ? (int)$profile['age'] : null,
@@ -53,6 +54,25 @@ final class ProfileRoutes
 
         $updates = [];
         $params = [];
+
+        if (array_key_exists('avatar_id', $input)) {
+            $avatarId = $input['avatar_id'];
+            if ($avatarId === null || $avatarId === '') {
+                $updates[] = 'avatar_id = ?';
+                $params[] = null;
+            } else {
+                if (is_string($avatarId) && ctype_digit($avatarId)) {
+                    $avatarId = (int)$avatarId;
+                }
+                if (!is_int($avatarId) || $avatarId < 1) {
+                    Response::error(422, 'INVALID_AVATAR_ID', 'avatar_id must be a positive integer or null.');
+                }
+                $updates[] = 'avatar_id = ?';
+                $params[] = $avatarId;
+                $updates[] = 'avatar_url = ?';
+                $params[] = null;
+            }
+        }
 
         if (array_key_exists('username', $input)) {
             $username = $input['username'];
@@ -95,6 +115,8 @@ final class ProfileRoutes
             if ($avatarUrl === null || $avatarUrl === '') {
                 $updates[] = 'avatar_url = ?';
                 $params[] = null;
+                $updates[] = 'avatar_id = ?';
+                $params[] = null;
             } else {
                 if (!is_string($avatarUrl)) {
                     Response::error(422, 'INVALID_AVATAR_URL', 'avatar_url must be a string.');
@@ -108,6 +130,8 @@ final class ProfileRoutes
                 }
                 $updates[] = 'avatar_url = ?';
                 $params[] = $avatarUrl;
+                $updates[] = 'avatar_id = ?';
+                $params[] = null;
             }
         }
 
@@ -215,7 +239,7 @@ final class ProfileRoutes
         // Fetch updated profile
         $stmt = $pdo->prepare(
             'SELECT u.id, u.public_id, u.account_role, u.status,
-                    p.username, p.display_name, p.avatar_url, p.bio, p.gender, p.age, p.country, p.updated_at
+                    p.username, p.display_name, p.avatar_url, p.avatar_id, p.bio, p.gender, p.age, p.country, p.updated_at
              FROM users u
              LEFT JOIN profiles p ON p.user_id = u.id
              WHERE u.id = ? LIMIT 1'
@@ -234,6 +258,7 @@ final class ProfileRoutes
                 'username' => $profile['username'],
                 'display_name' => $profile['display_name'],
                 'avatar_url' => $profile['avatar_url'],
+                'avatar_id' => isset($profile['avatar_id']) ? (int)$profile['avatar_id'] : null,
                 'bio' => $profile['bio'],
                 'gender' => $profile['gender'],
                 'age' => isset($profile['age']) && $profile['age'] !== null ? (int)$profile['age'] : null,

@@ -201,6 +201,7 @@ Field rules:
 - `username` (string|null): 3-30 chars, alphanumeric + underscore. Set `null` or `""` to clear.
 - `display_name` (string|null): 1-50 chars after trimming. Set `null` or `""` to clear.
 - `avatar_url` (string|null): valid URL, max 500 chars. Set `null` or `""` to clear.
+- `avatar_id` (integer|null): ID from `GET /api/avatars`. Setting it selects a bundled avatar and clears `avatar_url`.
 - `bio` (string|null): max 250 chars. Set `null` or `""` to clear.
 - `gender` (string|null): one of `male`, `female`, `other`, `prefer_not_to_say`. Set `null` or `""` to clear.
 - `age` (number|null): integer between 13 and 120. Set `null` or `""` to clear.
@@ -253,12 +254,35 @@ All errors follow this structure:
 
 Common HTTP status codes: `400`, `401`, `404`, `405`, `409`, `422`, `500`, `503`.
 
+### Anime avatar catalog
+`GET /api/avatars`
+
+Returns all bundled anime avatars from the database. Each entry includes its numeric `id`, filename, MIME type, and a base64 data URI in `image_data` that can be used directly as an image source. Use the returned `id` as `avatar_id` when updating `/api/profile/me`.
+
+```json
+{
+  "success": true,
+  "data": {
+    "avatars": [
+      {
+        "id": 1,
+        "filename": "avatar_01.jpg",
+        "mime_type": "image/jpeg",
+        "image_data": "data:image/jpeg;base64,..."
+      }
+    ]
+  }
+}
+```
+
 ## Setup
 
 1. Copy `config/config.example.php` to `config/config.php` and configure DB credentials (defaults to `say_my_mind` database).
 2. Import `db.sql` into MySQL to create the schema.
-3. Ensure Apache `mod_rewrite` is enabled and `.htaccess` is respected, or access via `index.php` directly.
-4. Start Apache/MySQL (XAMPP recommended).
+   For an existing database, apply `migrations/20261028_000002_add_anime_avatars.sql` instead.
+3. Import the image files into the avatar table with `php scripts/seed_anime_avatars.php`.
+4. Ensure Apache `mod_rewrite` is enabled and `.htaccess` is respected, or access via `index.php` directly.
+5. Start Apache/MySQL (XAMPP recommended).
 
 ## Notes
 - Sessions expire based on `session_ttl_days` in config (default 30 days).

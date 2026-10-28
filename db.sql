@@ -21,11 +21,20 @@ CREATE TABLE users (
         ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+CREATE TABLE anime_avatars (
+    id SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    filename VARCHAR(100) NOT NULL UNIQUE,
+    mime_type VARCHAR(50) NOT NULL,
+    image_data MEDIUMBLOB NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 CREATE TABLE profiles (
     user_id BIGINT UNSIGNED PRIMARY KEY,
     username VARCHAR(30) UNIQUE,
     display_name VARCHAR(50),
     avatar_url VARCHAR(500),
+    avatar_id SMALLINT UNSIGNED NULL,
     bio VARCHAR(250),
     gender ENUM('male', 'female', 'other', 'prefer_not_to_say') NULL,
     age TINYINT UNSIGNED NULL,
@@ -34,8 +43,11 @@ CREATE TABLE profiles (
         ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
         ON DELETE CASCADE,
+    FOREIGN KEY (avatar_id) REFERENCES anime_avatars(id)
+        ON DELETE SET NULL,
     CONSTRAINT chk_profiles_age CHECK (age IS NULL OR age BETWEEN 18 AND 120)
 ) ENGINE=InnoDB;
+
 
 CREATE TABLE auth_sessions (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

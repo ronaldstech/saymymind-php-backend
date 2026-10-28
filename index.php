@@ -27,6 +27,7 @@ require_once __DIR__ . '/src/AnonymousId.php';
 require_once __DIR__ . '/src/Auth.php';
 require_once __DIR__ . '/src/Routes/AuthRoutes.php';
 require_once __DIR__ . '/src/Routes/ProfileRoutes.php';
+require_once __DIR__ . '/src/Routes/AvatarRoutes.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
     header('Allow: GET, POST, PATCH, OPTIONS');
@@ -90,6 +91,16 @@ if ($pathNorm === '/api/auth/logout') {
     } catch (Throwable $e) {
         error_log('Database connection failed: ' . $e->getMessage());
         Response::error(503, 'DATABASE_UNAVAILABLE', 'Could not connect to the database.');
+    }
+}
+
+if ($pathNorm === '/api/avatars') {
+    try {
+        $pdo = Database::connect($config);
+        AvatarRoutes::index($pdo);
+    } catch (Throwable $e) {
+        error_log('Avatar catalog error: ' . $e->getMessage());
+        Response::error(500, 'AVATAR_CATALOG_FAILED', 'Could not load avatars.');
     }
 }
 
