@@ -27,10 +27,14 @@ CREATE TABLE profiles (
     display_name VARCHAR(50),
     avatar_url VARCHAR(500),
     bio VARCHAR(250),
+    gender ENUM('male', 'female', 'other', 'prefer_not_to_say') NULL,
+    age TINYINT UNSIGNED NULL,
+    country VARCHAR(100) NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT chk_profiles_age CHECK (age IS NULL OR age BETWEEN 18 AND 120)
 ) ENGINE=InnoDB;
 
 CREATE TABLE auth_sessions (

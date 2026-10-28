@@ -159,6 +159,9 @@ Authorization: Bearer <access_token>
       "display_name": "New User",
       "avatar_url": null,
       "bio": null,
+      "gender": null,
+      "age": null,
+      "country": null,
       "updated_at": "2026-10-28 10:20:30"
     }
   }
@@ -187,7 +190,10 @@ Content-Type: application/json
   "username": "new_name",
   "display_name": "My Name",
   "avatar_url": "https://example.com/avatar.jpg",
-  "bio": "Hello there!"
+  "bio": "Hello there!",
+  "gender": "male",
+  "age": 25,
+  "country": "Philippines"
 }
 ```
 
@@ -196,6 +202,9 @@ Field rules:
 - `display_name` (string|null): 1-50 chars after trimming. Set `null` or `""` to clear.
 - `avatar_url` (string|null): valid URL, max 500 chars. Set `null` or `""` to clear.
 - `bio` (string|null): max 250 chars. Set `null` or `""` to clear.
+- `gender` (string|null): one of `male`, `female`, `other`, `prefer_not_to_say`. Set `null` or `""` to clear.
+- `age` (number|null): integer between 13 and 120. Set `null` or `""` to clear.
+- `country` (string|null): 1-100 chars after trimming. Set `null` or `""` to clear.
 
 #### Response (200 OK)
 ```json
@@ -213,6 +222,9 @@ Field rules:
       "display_name": "My Name",
       "avatar_url": "https://example.com/avatar.jpg",
       "bio": "Hello there!",
+      "gender": "male",
+      "age": 25,
+      "country": "Philippines",
       "updated_at": "2026-10-28 11:05:42"
     }
   }
@@ -222,9 +234,9 @@ Field rules:
 #### Errors
 - `401 UNAUTHORIZED` - Missing/invalid/expired/revoked token or inactive account
 - `422 EMPTY_BODY` - No fields provided
-- `422 INVALID_USERNAME` / `422 INVALID_DISPLAY_NAME` / `422 INVALID_AVATAR_URL` / `422 INVALID_BIO` - Validation errors
+- `422 INVALID_USERNAME` / `422 INVALID_DISPLAY_NAME` / `422 INVALID_AVATAR_URL` / `422 INVALID_BIO` / `422 INVALID_GENDER` / `422 INVALID_AGE` / `422 INVALID_COUNTRY` - Validation errors
 - `422 NO_VALID_FIELDS` - No valid updatable fields
-- `409 USERNAME_UNAVAILABLE` - Username already taken
+- `409 USERNAME_UNAVAILABLE` / `409 CONFLICT` - Constraint/uniqueness conflicts
 - `500 PROFILE_UPDATE_FAILED` - Update failed
 
 ## Error response format

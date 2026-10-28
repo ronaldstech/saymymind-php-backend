@@ -11,7 +11,7 @@ final class ProfileRoutes
 
         $stmt = $pdo->prepare(
             'SELECT u.id, u.public_id, u.account_role, u.status, u.created_at,
-                    p.username, p.display_name, p.avatar_url, p.bio, p.updated_at
+                    p.username, p.display_name, p.avatar_url, p.bio, p.gender, p.age, p.country, p.updated_at
              FROM users u
              LEFT JOIN profiles p ON p.user_id = u.id
              WHERE u.id = ? LIMIT 1'
@@ -32,6 +32,9 @@ final class ProfileRoutes
                 'display_name' => $profile['display_name'] ?? null,
                 'avatar_url' => $profile['avatar_url'] ?? null,
                 'bio' => $profile['bio'] ?? null,
+                'gender' => $profile['gender'] ?? null,
+                'age' => isset($profile['age']) && $profile['age'] !== null ? (int)$profile['age'] : null,
+                'country' => $profile['country'] ?? null,
                 'updated_at' => $profile['updated_at'] ?? null,
             ],
         ]);
@@ -48,7 +51,6 @@ final class ProfileRoutes
             Response::error(422, 'EMPTY_BODY', 'No updatable fields provided.');
         }
 
-        $allowed = ['username', 'display_name', 'avatar_url', 'bio'];
         $updates = [];
         $params = [];
 
@@ -127,6 +129,63 @@ final class ProfileRoutes
             }
         }
 
+        if (array_key_exists('gender', $input)) {
+            $gender = $input['gender'];
+            if ($gender === null || $gender === '') {
+                $updates[] = 'gender = ?';
+                $params[] = null;
+            } else {
+                if (!is_string($gender)) {
+                    Response::error(422, 'INVALID_GENDER', 'gender must be a string.');
+                }
+                $allowedGenders = ['male', 'female', 'other', 'prefer_not_to_say'];
+                if (!in_array($gender, $allowedGenders, true)) {
+                    Response::error(422, 'INVALID_GENDER', 'gender must be one of: male, female, other, prefer_not_to_say.');
+                }
+                $updates[] = 'gender = ?';
+                $params[] = $gender;
+            }
+        }
+
+        if (array_key_exists('age', $input)) {
+            $age = $input['age'];
+            if ($age === null || $age === '') {
+                $updates[] = 'age = ?';
+                $params[] = null;
+            } else {
+                if (is_string($age) && ctype_digit($age)) {
+                    $age = (int)$age;
+                }
+                if (!is_int($age) && !is_numeric($age)) {
+                    Response::error(422, 'INVALID_AGE', 'age must be a number.');
+                }
+                $age = (int)$age;
+                if ($age < 13 || $age > 120) {
+                    Response::error(422, 'INVALID_AGE', 'age must be between 13 and 120.');
+                }
+                $updates[] = 'age = ?';
+                $params[] = $age;
+            }
+        }
+
+        if (array_key_exists('country', $input)) {
+            $country = $input['country'];
+            if ($country === null || $country === '') {
+                $updates[] = 'country = ?';
+                $params[] = null;
+            } else {
+                if (!is_string($country)) {
+                    Response::error(422, 'INVALID_COUNTRY', 'country must be a string.');
+                }
+                $country = trim($country);
+                if ($country === '' || mb_strlen($country) > 100) {
+                    Response::error(422, 'INVALID_COUNTRY', 'country must contain 1–100 characters.');
+                }
+                $updates[] = 'country = ?';
+                $params[] = $country;
+            }
+        }
+
         if (empty($updates)) {
             Response::error(422, 'NO_VALID_FIELDS', 'No valid updatable fields provided.');
         }
@@ -140,7 +199,14 @@ final class ProfileRoutes
             $stmt->execute($params);
         } catch (PDOException $e) {
             if ($e->getCode() === '23000') {
-                Response::error(409, 'USERNAME_UNAVAILABLE', 'That username may already be in use.');
+                // Could be username unique or age check
+                if (stripos($e->getMessage(), 'username') !== false) {
+                    Response::error(409, 'USERNAME_UNAVAILABLE', 'That username may already be in use.');
+                }
+                if (stripos($e->getMessage(), 'age') !== false) {
+                    Response::error(422, 'INVALID_AGE', 'age must be between 13 and 120.');
+                }
+                Response::error(409, 'CONFLICT', 'Could not update profile due to constraint violation.');
             }
             error_log('Profile update error: ' . $e->getMessage());
             Response::error(500, 'PROFILE_UPDATE_FAILED', 'Could not update profile.');
@@ -149,7 +215,7 @@ final class ProfileRoutes
         // Fetch updated profile
         $stmt = $pdo->prepare(
             'SELECT u.id, u.public_id, u.account_role, u.status,
-                    p.username, p.display_name, p.avatar_url, p.bio, p.updated_at
+                    p.username, p.display_name, p.avatar_url, p.bio, p.gender, p.age, p.country, p.updated_at
              FROM users u
              LEFT JOIN profiles p ON p.user_id = u.id
              WHERE u.id = ? LIMIT 1'
@@ -169,6 +235,9 @@ final class ProfileRoutes
                 'display_name' => $profile['display_name'],
                 'avatar_url' => $profile['avatar_url'],
                 'bio' => $profile['bio'],
+                'gender' => $profile['gender'],
+                'age' => isset($profile['age']) && $profile['age'] !== null ? (int)$profile['age'] : null,
+                'country' => $profile['country'],
                 'updated_at' => $profile['updated_at'],
             ],
         ]);
