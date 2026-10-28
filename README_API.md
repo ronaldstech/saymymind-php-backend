@@ -336,6 +336,28 @@ Optional query parameters:
 
 Errors: `401 UNAUTHORIZED`, `422 INVALID_LIMIT`, `422 INVALID_BEFORE_ID`.
 
+`GET /api/conversations/{id}/messages` returns messages in ascending ID order for a conversation the caller participates in. It accepts `limit` (default `50`, maximum `100`) and `after_id` (the last message ID received) for polling older or newer messages.
+
+`POST /api/conversations/{id}/messages` sends a message to an active conversation. It requires authentication and membership in that conversation.
+
+```json
+{ "type": "text", "content": "Hi!" }
+```
+
+`type` may be `text`, `image`, or `audio`; it defaults to `text`. Text messages require `content`. Image/audio messages accept `content`, `media_url`, or both. An optional `reply_to_message_id` must refer to a message in the same conversation. The response is `201 Created`; inactive conversations return `409 CONVERSATION_ENDED`.
+
+### Anonymous inbox
+Inbox management routes require bearer authentication. Public link submissions do not require authentication.
+
+- `GET /api/inbox/links` lists the authenticated user's anonymous links.
+- `POST /api/inbox/links` creates a link. Optional body: `{ "title": "Ask me anything" }`. The response contains its unique `slug`.
+- `POST /api/inbox/links/{slug}/messages` submits an anonymous message with body `{ "content": "Hello!" }`.
+- `GET /api/inbox/messages` lists messages sent to the authenticated user's links, newest first. Supports `limit` (default `20`, maximum `100`) and `before_id` pagination.
+- `PATCH /api/inbox/messages/{id}` updates an owned message status. Body: `{ "status": "read" }`. Allowed values: `read`, `hidden`, `removed`.
+- `POST /api/inbox/messages/{id}/replies` replies to an owned message. Body: `{ "content": "Thanks!", "visibility": "private" }`. `visibility` is optional and may be `private` or `public`; replies mark the inbox message `replied`.
+
+Public link submissions create `unread` messages with no sender account. Use `404 LINK_NOT_FOUND` for missing/inactive slugs and `404 MESSAGE_NOT_FOUND` when a message does not exist or is not owned by the caller. Content must contain 1–5000 characters. Link titles are optional and limited to 100 characters.
+
 ## Setup
 
 1. Copy `config/config.example.php` to `config/config.php` and configure DB credentials (defaults to `say_my_mind` database).

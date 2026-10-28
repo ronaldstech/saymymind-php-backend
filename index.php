@@ -30,6 +30,7 @@ require_once __DIR__ . '/src/Routes/ProfileRoutes.php';
 require_once __DIR__ . '/src/Routes/AvatarRoutes.php';
 require_once __DIR__ . '/src/Routes/MatchmakingRoutes.php';
 require_once __DIR__ . '/src/Routes/ConversationRoutes.php';
+require_once __DIR__ . '/src/Routes/InboxRoutes.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
     header('Allow: GET, POST, PATCH, DELETE, OPTIONS');
@@ -116,13 +117,23 @@ if ($pathNorm === '/api/matchmaking') {
     }
 }
 
-if ($pathNorm === '/api/conversations') {
+if ($pathNorm === '/api/conversations' || str_starts_with($pathNorm, '/api/conversations/')) {
     try {
         $pdo = Database::connect($config);
-        ConversationRoutes::dispatch($pdo);
+        ConversationRoutes::dispatch($pdo, $pathNorm);
     } catch (Throwable $e) {
         error_log('Conversations database error: ' . $e->getMessage());
         Response::error(503, 'DATABASE_UNAVAILABLE', 'Could not load conversations.');
+    }
+}
+
+if ($pathNorm === '/api/inbox' || str_starts_with($pathNorm, '/api/inbox/')) {
+    try {
+        $pdo = Database::connect($config);
+        InboxRoutes::dispatch($pdo, $pathNorm);
+    } catch (Throwable $e) {
+        error_log('Inbox API error: ' . $e->getMessage());
+        Response::error(500, 'INBOX_FAILED', 'Could not complete the inbox request.');
     }
 }
 
