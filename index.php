@@ -30,6 +30,8 @@ require_once __DIR__ . '/src/Routes/ProfileRoutes.php';
 require_once __DIR__ . '/src/Routes/AvatarRoutes.php';
 require_once __DIR__ . '/src/Routes/MatchmakingRoutes.php';
 require_once __DIR__ . '/src/Routes/ConversationRoutes.php';
+require_once __DIR__ . '/src/Routes/FriendRoutes.php';
+require_once __DIR__ . '/src/Routes/SafetyRoutes.php';
 require_once __DIR__ . '/src/Routes/InboxRoutes.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
@@ -127,6 +129,24 @@ if ($pathNorm === '/api/conversations' || str_starts_with($pathNorm, '/api/conve
     }
 }
 
+if ($pathNorm === '/api/friends') {
+    try {
+        $pdo = Database::connect($config);
+        FriendRoutes::dispatch($pdo);
+    } catch (Throwable $e) {
+        error_log('Friend API error: ' . $e->getMessage());
+        Response::error(500, 'FRIEND_REQUEST_FAILED', 'Could not add this friend.');
+    }
+}
+if ($pathNorm === '/api/blocks' || $pathNorm === '/api/reports') {
+    try {
+        $pdo = Database::connect($config);
+        SafetyRoutes::dispatch($pdo, $pathNorm);
+    } catch (Throwable $e) {
+        error_log('Safety API error: ' . $e->getMessage());
+        Response::error(500, 'SAFETY_ACTION_FAILED', 'Could not complete this safety action.');
+    }
+}
 if ($pathNorm === '/api/inbox' || str_starts_with($pathNorm, '/api/inbox/')) {
     try {
         $pdo = Database::connect($config);

@@ -56,6 +56,11 @@ final class MatchmakingRoutes
                  JOIN user_settings s ON s.user_id = q.user_id AND s.allow_matching = 1
                  WHERE q.status = 'waiting' AND q.user_id <> ?
                    AND NOT EXISTS (
+                       SELECT 1 FROM user_blocks b
+                       WHERE (b.blocker_user_id = ? AND b.blocked_user_id = q.user_id)
+                          OR (b.blocker_user_id = q.user_id AND b.blocked_user_id = ?)
+                   )
+                   AND NOT EXISTS (
                        SELECT 1 FROM matches m
                        WHERE m.status = 'active'
                          AND (m.user_a_id = q.user_id OR m.user_b_id = q.user_id)
@@ -63,7 +68,7 @@ final class MatchmakingRoutes
                  ORDER BY q.queued_at ASC, q.user_id ASC
                  LIMIT 1 FOR UPDATE"
             );
-            $peerQuery->execute([$userId]);
+            $peerQuery->execute([$userId, $userId, $userId]);
             $peerId = $peerQuery->fetchColumn();
 
             if ($peerId === false) {

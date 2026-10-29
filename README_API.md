@@ -347,6 +347,13 @@ Errors: `401 UNAUTHORIZED`, `422 INVALID_LIMIT`, `422 INVALID_BEFORE_ID`.
 
 `type` may be `text`, `image`, or `audio`; it defaults to `text`. Text messages require `content`. Image/audio messages accept `content`, `media_url`, or both. An optional `reply_to_message_id` must refer to a message in the same conversation. The response is `201 Created`; inactive conversations return `409 CONVERSATION_ENDED`.
 
+`POST /api/conversations/{id}/end` ends an active conversation for both participants. The conversation remains in history but cannot receive new messages.
+### Safety actions
+`POST /api/blocks` blocks a user by `{ "public_id": "anon_..." }`. Blocking ends an active conversation between the pair, removes any friendship, and prevents future random matches.
+
+`POST /api/reports` reports a user by `{ "public_id": "anon_...", "reason": "harassment", "description": "optional details" }`. Allowed reasons are `harassment`, `spam`, `inappropriate_content`, and `other`. Reports are stored as pending for moderation.
+### Friends
+`POST /api/friends` adds the authenticated user's conversation partner as a friend. Body: `{ "public_id": "anon_..." }`. The relationship is stored for both users. Repeating the request is safe and returns `added: false` when they are already friends. Users who have blocked each other cannot be added.
 ### Anonymous inbox
 Inbox management routes require bearer authentication. Public link submissions do not require authentication.
 
@@ -363,7 +370,7 @@ Public link submissions create `unread` messages with no sender account. Use `40
 
 1. Copy `config/config.example.php` to `config/config.php` and configure DB credentials (defaults to `say_my_mind` database).
 2. Import `db.sql` into MySQL to create the schema.
-   For an existing database, apply `migrations/20261028_000002_add_anime_avatars.sql` instead.
+   For an existing database, apply the required migrations in order: `20261028_000001_add_profile_gender_age_country.sql`, `20261028_000002_add_anime_avatars.sql`, and `20261029_000003_add_user_friends.sql`.
 3. Import the image files into the avatar table with `php scripts/seed_anime_avatars.php`.
 4. Ensure Apache `mod_rewrite` is enabled and `.htaccess` is respected, or access via `index.php` directly.
 5. Start Apache/MySQL (XAMPP recommended).

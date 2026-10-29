@@ -5,6 +5,10 @@ final class ConversationRoutes
 {
     public static function dispatch(PDO $pdo, string $path = '/api/conversations'): never
     {
+        if (preg_match('#^/api/conversations/(\d+)/end$#', $path, $matches)) {
+            Http::method('POST');
+            self::endConversation($pdo, (int)$matches[1]);
+        }
         if (preg_match('#^/api/conversations/(\d+)/messages$#', $path, $matches)) {
             $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
             if ($method === 'GET') {
@@ -135,6 +139,34 @@ final class ConversationRoutes
         ]);
     }
 
+    private static function endConversation(PDO $pdo, int $conversationId): never
+    {
+        $auth = Auth::requireAuth($pdo);
+        $userId = $auth['user']['id'];
+        self::requireParticipant($pdo, $conversationId, $userId);
+
+        $pdo->beginTransaction();
+        try {
+            $conversation = $pdo->prepare(
+                "UPDATE conversations SET status = 'ended', ended_at = COALESCE(ended_at, NOW())
+                 WHERE id = ? AND status = 'active'"
+            );
+            $conversation->execute([$conversationId]);
+            $matches = $pdo->prepare(
+                "UPDATE matches SET status = 'ended', ended_at = COALESCE(ended_at, NOW())
+                 WHERE conversation_id = ? AND status = 'active'"
+            );
+            $matches->execute([$conversationId]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+
+        Response::ok(['conversation_id' => $conversationId, 'ended' => true]);
+    }
     private static function messages(PDO $pdo, int $conversationId): never
     {
         $auth = Auth::requireAuth($pdo);
