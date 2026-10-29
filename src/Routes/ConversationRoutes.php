@@ -172,6 +172,11 @@ final class ConversationRoutes
         $auth = Auth::requireAuth($pdo);
         $userId = $auth['user']['id'];
         self::requireParticipant($pdo, $conversationId, $userId);
+        $status = $pdo->prepare('SELECT status FROM conversations WHERE id = ? LIMIT 1');
+        $status->execute([$conversationId]);
+        if ($status->fetchColumn() !== 'active') {
+            Response::error(409, 'CONVERSATION_ENDED', 'This conversation has ended.');
+        }
 
         $limit = 50;
         if (isset($_GET['limit'])) {
