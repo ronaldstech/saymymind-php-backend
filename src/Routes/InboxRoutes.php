@@ -120,15 +120,23 @@ final class InboxRoutes
             Response::error(422, 'INVALID_CONTENT', 'content must contain 1 to 5000 characters.');
         }
 
-        $link = $pdo->prepare('SELECT id FROM anonymous_links WHERE slug = ? AND is_active = 1 LIMIT 1');
+        $link = $pdo->prepare(
+            'SELECT l.id, s.allow_anonymous_messages
+             FROM anonymous_links l
+             LEFT JOIN user_settings s ON s.user_id = l.owner_user_id
+             WHERE l.slug = ? AND l.is_active = 1 LIMIT 1'
+        );
         $link->execute([$slug]);
-        $linkId = $link->fetchColumn();
-        if ($linkId === false) {
+        $linkRow = $link->fetch();
+        if (!$linkRow) {
             Response::error(404, 'LINK_NOT_FOUND', 'Inbox link not found.');
+        }
+        if (isset($linkRow['allow_anonymous_messages']) && !(bool)$linkRow['allow_anonymous_messages']) {
+            Response::error(403, 'ANONYMOUS_MESSAGES_DISABLED', 'This user is not accepting anonymous messages.');
         }
 
         $stmt = $pdo->prepare("INSERT INTO inbox_messages (anonymous_link_id, content, status) VALUES (?, ?, 'unread')");
-        $stmt->execute([(int)$linkId, $content]);
+        $stmt->execute([(int)$linkRow['id'], $content]);
         Response::ok(['message' => [
             'id' => (int)$pdo->lastInsertId(),
             'status' => 'unread',

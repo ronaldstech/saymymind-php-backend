@@ -56,6 +56,10 @@ final class MatchmakingRoutes
                  JOIN user_settings s ON s.user_id = q.user_id AND s.allow_matching = 1
                  WHERE q.status = 'waiting' AND q.user_id <> ?
                    AND NOT EXISTS (
+                       SELECT 1 FROM user_friends f
+                       WHERE f.user_id = ? AND f.friend_user_id = q.user_id
+                   )
+                   AND NOT EXISTS (
                        SELECT 1 FROM user_blocks b
                        WHERE (b.blocker_user_id = ? AND b.blocked_user_id = q.user_id)
                           OR (b.blocker_user_id = q.user_id AND b.blocked_user_id = ?)
@@ -68,7 +72,7 @@ final class MatchmakingRoutes
                  ORDER BY q.queued_at ASC, q.user_id ASC
                  LIMIT 1 FOR UPDATE"
             );
-            $peerQuery->execute([$userId, $userId, $userId]);
+            $peerQuery->execute([$userId, $userId, $userId, $userId]);
             $peerId = $peerQuery->fetchColumn();
 
             if ($peerId === false) {
@@ -146,12 +150,23 @@ final class MatchmakingRoutes
 
     private static function findActiveMatch(PDO $pdo, int $userId): ?array
     {
+        $pdo->prepare(
+            "UPDATE matches m
+             JOIN user_friends f
+               ON f.user_id = m.user_a_id AND f.friend_user_id = m.user_b_id
+             SET m.status = 'ended', m.ended_at = COALESCE(m.ended_at, NOW())
+             WHERE m.status = 'active' AND (m.user_a_id = ? OR m.user_b_id = ?)"
+        )->execute([$userId, $userId]);
         $stmt = $pdo->prepare(
             "SELECT m.id, m.conversation_id, m.matched_at,
                     CASE WHEN m.user_a_id = ? THEN m.user_b_id ELSE m.user_a_id END AS partner_id
              FROM matches m
              JOIN conversations c ON c.id = m.conversation_id AND c.status = 'active'
              WHERE m.status = 'active' AND (m.user_a_id = ? OR m.user_b_id = ?)
+               AND NOT EXISTS (
+                   SELECT 1 FROM user_friends f
+                   WHERE f.user_id = m.user_a_id AND f.friend_user_id = m.user_b_id
+               )
              ORDER BY m.matched_at DESC LIMIT 1"
         );
         $stmt->execute([$userId, $userId, $userId]);
@@ -170,8 +185,19 @@ final class MatchmakingRoutes
     private static function publicUser(PDO $pdo, int $userId): array
     {
         $stmt = $pdo->prepare(
-            'SELECT u.public_id, p.username, p.display_name, p.avatar_url, p.avatar_id
-             FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = ?'
+            'SELECT u.public_id, p.username, p.display_name, p.avatar_url, p.avatar_id,
+                    COALESCE(s.show_online_status, 0) AS show_online_status,
+                    EXISTS (
+                        SELECT 1 FROM auth_sessions active_session
+                        WHERE active_session.user_id = u.id
+                          AND active_session.revoked_at IS NULL
+                          AND active_session.expires_at > NOW()
+                          AND active_session.last_used_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                    ) AS is_online
+             FROM users u
+             LEFT JOIN profiles p ON p.user_id = u.id
+             LEFT JOIN user_settings s ON s.user_id = u.id
+             WHERE u.id = ?'
         );
         $stmt->execute([$userId]);
         $user = $stmt->fetch() ?: [];
@@ -181,6 +207,7 @@ final class MatchmakingRoutes
             'display_name' => $user['display_name'] ?? null,
             'avatar_url' => $user['avatar_url'] ?? null,
             'avatar_id' => isset($user['avatar_id']) ? (int)$user['avatar_id'] : null,
+            'is_online' => (bool)$user['show_online_status'] ? (bool)$user['is_online'] : null,
         ];
     }
 }

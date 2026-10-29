@@ -353,7 +353,7 @@ Errors: `401 UNAUTHORIZED`, `422 INVALID_LIMIT`, `422 INVALID_BEFORE_ID`.
 
 `POST /api/reports` reports a user by `{ "public_id": "anon_...", "reason": "harassment", "description": "optional details" }`. Allowed reasons are `harassment`, `spam`, `inappropriate_content`, and `other`. Reports are stored as pending for moderation.
 ### Friends
-`POST /api/friends` adds the authenticated user's conversation partner as a friend. Body: `{ "public_id": "anon_..." }`. The relationship is stored for both users. Repeating the request is safe and returns `added: false` when they are already friends. Users who have blocked each other cannot be added.
+`POST /api/friends` sends a friend request with body `{ "public_id": "anon_..." }`. `GET /api/friends/status?public_id=...` returns `none`, `outgoing_pending`, `incoming_pending`, `friends`, or `blocked`. `POST /api/friends/accept` accepts a request with the same `public_id` body. Requests from blocked users cannot be sent or accepted.
 ### Anonymous inbox
 Inbox management routes require bearer authentication. Public link submissions do not require authentication.
 
@@ -370,7 +370,7 @@ Public link submissions create `unread` messages with no sender account. Use `40
 
 1. Copy `config/config.example.php` to `config/config.php` and configure DB credentials (defaults to `say_my_mind` database).
 2. Import `db.sql` into MySQL to create the schema.
-   For an existing database, apply the required migrations in order: `20261028_000001_add_profile_gender_age_country.sql`, `20261028_000002_add_anime_avatars.sql`, and `20261029_000003_add_user_friends.sql`.
+   For an existing database, apply the required migrations in order: `20261028_000001_add_profile_gender_age_country.sql`, `20261028_000002_add_anime_avatars.sql`, `20261029_000003_add_user_friends.sql`, and `20261029_000004_add_friend_requests.sql`.
 3. Import the image files into the avatar table with `php scripts/seed_anime_avatars.php`.
 4. Ensure Apache `mod_rewrite` is enabled and `.htaccess` is respected, or access via `index.php` directly.
 5. Start Apache/MySQL (XAMPP recommended).

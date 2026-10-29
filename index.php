@@ -33,6 +33,7 @@ require_once __DIR__ . '/src/Routes/ConversationRoutes.php';
 require_once __DIR__ . '/src/Routes/FriendRoutes.php';
 require_once __DIR__ . '/src/Routes/SafetyRoutes.php';
 require_once __DIR__ . '/src/Routes/InboxRoutes.php';
+require_once __DIR__ . '/src/Routes/SettingsRoutes.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
     header('Allow: GET, POST, PATCH, DELETE, OPTIONS');
@@ -129,10 +130,10 @@ if ($pathNorm === '/api/conversations' || str_starts_with($pathNorm, '/api/conve
     }
 }
 
-if ($pathNorm === '/api/friends') {
+if ($pathNorm === '/api/friends' || str_starts_with($pathNorm, '/api/friends/')) {
     try {
         $pdo = Database::connect($config);
-        FriendRoutes::dispatch($pdo);
+        FriendRoutes::dispatch($pdo, $pathNorm);
     } catch (Throwable $e) {
         error_log('Friend API error: ' . $e->getMessage());
         Response::error(500, 'FRIEND_REQUEST_FAILED', 'Could not add this friend.');
@@ -145,6 +146,15 @@ if ($pathNorm === '/api/blocks' || $pathNorm === '/api/reports') {
     } catch (Throwable $e) {
         error_log('Safety API error: ' . $e->getMessage());
         Response::error(500, 'SAFETY_ACTION_FAILED', 'Could not complete this safety action.');
+    }
+}
+if ($pathNorm === '/api/settings') {
+    try {
+        $pdo = Database::connect($config);
+        SettingsRoutes::dispatch($pdo);
+    } catch (Throwable $e) {
+        error_log('Settings API error: ' . $e->getMessage());
+        Response::error(500, 'SETTINGS_FAILED', 'Could not update your settings.');
     }
 }
 if ($pathNorm === '/api/inbox' || str_starts_with($pathNorm, '/api/inbox/')) {

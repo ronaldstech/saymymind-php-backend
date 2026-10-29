@@ -32,12 +32,7 @@ final class SafetyRoutes
         $targetId = (int)$target['id'];
         if ($targetId === $userId) Response::error(422, 'CANNOT_BLOCK_SELF', 'You cannot block yourself.');
 
-        $active = $pdo->prepare(
-            "SELECT id, conversation_id FROM matches
-             WHERE status = 'active' AND ((user_a_id = ? AND user_b_id = ?) OR (user_a_id = ? AND user_b_id = ?)) LIMIT 1"
-        );
-        $active->execute([$userId, $targetId, $targetId, $userId]);
-        $match = $active->fetch();
+        $conversationEnded = false;
         $pdo->beginTransaction();
         try {
             $insert = $pdo->prepare('INSERT IGNORE INTO user_blocks (blocker_user_id, blocked_user_id) VALUES (?, ?)');
@@ -45,12 +40,21 @@ final class SafetyRoutes
             $newlyBlocked = $insert->rowCount() > 0;
             $pdo->prepare('DELETE FROM user_friends WHERE (user_id = ? AND friend_user_id = ?) OR (user_id = ? AND friend_user_id = ?)')
                 ->execute([$userId, $targetId, $targetId, $userId]);
-            if ($match) {
-                $pdo->prepare("UPDATE matches SET status = 'ended', ended_at = COALESCE(ended_at, NOW()) WHERE id = ?")
-                    ->execute([(int)$match['id']]);
-                $pdo->prepare("UPDATE conversations SET status = 'ended', ended_at = COALESCE(ended_at, NOW()) WHERE id = ? AND status = 'active'")
-                    ->execute([(int)$match['conversation_id']]);
-            }
+            $endConversations = $pdo->prepare(
+                "UPDATE conversations c
+                 JOIN conversation_participants mine
+                   ON mine.conversation_id = c.id AND mine.user_id = ?
+                 JOIN conversation_participants other
+                   ON other.conversation_id = c.id AND other.user_id = ?
+                 SET c.status = 'ended', c.ended_at = COALESCE(c.ended_at, NOW())
+                 WHERE c.status = 'active'"
+            );
+            $endConversations->execute([$userId, $targetId]);
+            $conversationEnded = $endConversations->rowCount() > 0;
+            $pdo->prepare(
+                "UPDATE matches SET status = 'ended', ended_at = COALESCE(ended_at, NOW())
+                 WHERE status = 'active' AND ((user_a_id = ? AND user_b_id = ?) OR (user_a_id = ? AND user_b_id = ?))"
+            )->execute([$userId, $targetId, $targetId, $userId]);
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -59,7 +63,7 @@ final class SafetyRoutes
         Response::ok([
             'blocked' => true,
             'already_blocked' => !$newlyBlocked,
-            'conversation_ended' => $match !== false,
+            'conversation_ended' => $conversationEnded,
             'public_id' => $target['public_id'],
         ]);
     }

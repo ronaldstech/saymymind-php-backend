@@ -48,20 +48,37 @@ final class ConversationRoutes
             $beforeId = (int)$rawBeforeId;
         }
 
+        $typeFilter = null;
+        if (isset($_GET['type'])) {
+            $rawType = $_GET['type'];
+            if (!is_string($rawType) || !in_array($rawType, ['random', 'direct', 'group'], true)) {
+                Response::error(422, 'INVALID_CONVERSATION_TYPE', 'type must be random, direct, or group.');
+            }
+            $typeFilter = $rawType;
+        }
+        if ($typeFilter === 'direct') {
+            $friends = $pdo->prepare('SELECT friend_user_id FROM user_friends WHERE user_id = ?');
+            $friends->execute([$userId]);
+            foreach ($friends->fetchAll(PDO::FETCH_COLUMN) as $friendId) {
+                FriendRoutes::ensureConversation($pdo, (int)$userId, (int)$friendId);
+            }
+        }
         $sql = "SELECT c.id, c.type, c.status, c.created_at, c.ended_at,
                        (SELECT MAX(m.id) FROM messages m
                         WHERE m.conversation_id = c.id AND m.deleted_at IS NULL) AS last_message_id
                 FROM conversations c
                 JOIN conversation_participants mine
                   ON mine.conversation_id = c.id AND mine.user_id = ? AND mine.left_at IS NULL
-                WHERE (? IS NULL OR c.id < ?)
+                WHERE (? IS NULL OR c.id < ?) AND (? IS NULL OR c.type = ?)
                 ORDER BY c.id DESC
                 LIMIT ?";
         $stmt = $pdo->prepare($sql);
         $stmt->bindValue(1, $userId, PDO::PARAM_INT);
         $stmt->bindValue(2, $beforeId, $beforeId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
         $stmt->bindValue(3, $beforeId, $beforeId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
-        $stmt->bindValue(4, $limit + 1, PDO::PARAM_INT);
+        $stmt->bindValue(4, $typeFilter, $typeFilter === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        $stmt->bindValue(5, $typeFilter, $typeFilter === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        $stmt->bindValue(6, $limit + 1, PDO::PARAM_INT);
         $stmt->execute();
         $rows = $stmt->fetchAll();
         $hasMore = count($rows) > $limit;
@@ -74,10 +91,19 @@ final class ConversationRoutes
             $conversationId = (int)$row['id'];
 
             $participantsQuery = $pdo->prepare(
-                'SELECT u.id, u.public_id, p.username, p.display_name, p.avatar_url, p.avatar_id
+                'SELECT u.id, u.public_id, p.username, p.display_name, p.avatar_url, p.avatar_id,
+                        COALESCE(s.show_online_status, 0) AS show_online_status,
+                        EXISTS (
+                            SELECT 1 FROM auth_sessions active_session
+                            WHERE active_session.user_id = u.id
+                              AND active_session.revoked_at IS NULL
+                              AND active_session.expires_at > NOW()
+                              AND active_session.last_used_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                        ) AS is_online
                  FROM conversation_participants cp
                  JOIN users u ON u.id = cp.user_id
                  LEFT JOIN profiles p ON p.user_id = u.id
+                 LEFT JOIN user_settings s ON s.user_id = u.id
                  WHERE cp.conversation_id = ? AND cp.left_at IS NULL
                  ORDER BY cp.joined_at ASC'
             );
@@ -89,6 +115,7 @@ final class ConversationRoutes
                     'display_name' => $participant['display_name'],
                     'avatar_url' => $participant['avatar_url'],
                     'avatar_id' => $participant['avatar_id'] !== null ? (int)$participant['avatar_id'] : null,
+                    'is_online' => (bool)$participant['show_online_status'] ? (bool)$participant['is_online'] : null,
                     'is_mine' => (int)$participant['id'] === $userId,
                 ];
             }, $participantsQuery->fetchAll());
@@ -144,6 +171,12 @@ final class ConversationRoutes
         $auth = Auth::requireAuth($pdo);
         $userId = $auth['user']['id'];
         self::requireParticipant($pdo, $conversationId, $userId);
+        $type = $pdo->prepare('SELECT type FROM conversations WHERE id = ? LIMIT 1');
+        $type->execute([$conversationId]);
+        if ($type->fetchColumn() === 'direct') {
+            Response::ok(['conversation_id' => $conversationId, 'ended' => false, 'permanent' => true]);
+        }
+
 
         $pdo->beginTransaction();
         try {
