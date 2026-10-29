@@ -165,13 +165,14 @@ final class MatchmakingRoutes
     private static function publicUser(PDO $pdo, int $userId): array
     {
         $stmt = $pdo->prepare(
-            'SELECT u.public_id, p.display_name, p.avatar_url, p.avatar_id
+            'SELECT u.public_id, p.username, p.display_name, p.avatar_url, p.avatar_id
              FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = ?'
         );
         $stmt->execute([$userId]);
         $user = $stmt->fetch() ?: [];
         return [
             'public_id' => $user['public_id'] ?? null,
+            'username' => $user['username'] ?? null,
             'display_name' => $user['display_name'] ?? null,
             'avatar_url' => $user['avatar_url'] ?? null,
             'avatar_id' => isset($user['avatar_id']) ? (int)$user['avatar_id'] : null,

@@ -70,29 +70,32 @@ final class ConversationRoutes
             $conversationId = (int)$row['id'];
 
             $participantsQuery = $pdo->prepare(
-                'SELECT u.public_id, p.display_name, p.avatar_url, p.avatar_id
+                'SELECT u.id, u.public_id, p.username, p.display_name, p.avatar_url, p.avatar_id
                  FROM conversation_participants cp
                  JOIN users u ON u.id = cp.user_id
                  LEFT JOIN profiles p ON p.user_id = u.id
-                 WHERE cp.conversation_id = ? AND cp.user_id <> ? AND cp.left_at IS NULL
+                 WHERE cp.conversation_id = ? AND cp.left_at IS NULL
                  ORDER BY cp.joined_at ASC'
             );
-            $participantsQuery->execute([$conversationId, $userId]);
-            $participants = array_map(static function (array $participant): array {
+            $participantsQuery->execute([$conversationId]);
+            $participants = array_map(static function (array $participant) use ($userId): array {
                 return [
                     'public_id' => $participant['public_id'],
+                    'username' => $participant['username'],
                     'display_name' => $participant['display_name'],
                     'avatar_url' => $participant['avatar_url'],
                     'avatar_id' => $participant['avatar_id'] !== null ? (int)$participant['avatar_id'] : null,
+                    'is_mine' => (int)$participant['id'] === $userId,
                 ];
             }, $participantsQuery->fetchAll());
 
             $lastMessage = null;
             if ($row['last_message_id'] !== null) {
                 $messageQuery = $pdo->prepare(
-                    'SELECT m.id, m.sender_id, u.public_id AS sender_public_id,
+                    'SELECT m.id, m.sender_id, u.public_id AS sender_public_id, p.username AS sender_username,
                             m.message_type, m.content, m.media_url, m.created_at
-                     FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?'
+                     FROM messages m JOIN users u ON u.id = m.sender_id
+                     LEFT JOIN profiles p ON p.user_id = u.id WHERE m.id = ?'
                 );
                 $messageQuery->execute([(int)$row['last_message_id']]);
                 $message = $messageQuery->fetch();
@@ -100,6 +103,7 @@ final class ConversationRoutes
                     $lastMessage = [
                         'id' => (int)$message['id'],
                         'sender_public_id' => $message['sender_public_id'],
+                        'sender_username' => $message['sender_username'],
                         'is_mine' => (int)$message['sender_id'] === $userId,
                         'type' => $message['message_type'],
                         'content' => $message['content'],
@@ -155,11 +159,12 @@ final class ConversationRoutes
         }
 
         $stmt = $pdo->prepare(
-            'SELECT m.id, m.sender_id, u.public_id AS sender_public_id, m.message_type,
+            'SELECT m.id, m.sender_id, u.public_id AS sender_public_id, p.username AS sender_username, m.message_type,
                     m.content, m.media_url, m.reply_to_message_id, m.created_at, m.edited_at,
                     m.deleted_at, r.delivered_at, r.read_at
              FROM messages m
              JOIN users u ON u.id = m.sender_id
+             LEFT JOIN profiles p ON p.user_id = u.id
              LEFT JOIN message_receipts r ON r.message_id = m.id AND r.user_id = ?
              WHERE m.conversation_id = ? AND m.id > ?
              ORDER BY m.id ASC LIMIT ?'
@@ -179,6 +184,7 @@ final class ConversationRoutes
             return [
                 'id' => (int)$row['id'],
                 'sender_public_id' => $row['sender_public_id'],
+                'sender_username' => $row['sender_username'],
                 'is_mine' => (int)$row['sender_id'] === $userId,
                 'type' => $row['message_type'],
                 'content' => $row['deleted_at'] === null ? $row['content'] : null,
@@ -283,11 +289,16 @@ final class ConversationRoutes
             throw $e;
         }
 
+        $profileQuery = $pdo->prepare('SELECT username FROM profiles WHERE user_id = ? LIMIT 1');
+        $profileQuery->execute([$userId]);
+        $senderUsername = $profileQuery->fetchColumn();
+
         Response::ok([
             'message' => [
                 'id' => $messageId,
                 'conversation_id' => $conversationId,
                 'sender_public_id' => $auth['user']['public_id'],
+                'sender_username' => $senderUsername !== false ? $senderUsername : null,
                 'is_mine' => true,
                 'type' => $type,
                 'content' => $content,

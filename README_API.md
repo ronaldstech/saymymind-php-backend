@@ -293,6 +293,7 @@ Match response shape:
       "conversation_id": 34,
       "partner": {
         "public_id": "anon_ab12cd34ef56ab78",
+        "username": "new_user_123",
         "display_name": "New User",
         "avatar_url": null,
         "avatar_id": 2
@@ -336,7 +337,7 @@ Optional query parameters:
 
 Errors: `401 UNAUTHORIZED`, `422 INVALID_LIMIT`, `422 INVALID_BEFORE_ID`.
 
-`GET /api/conversations/{id}/messages` returns messages in ascending ID order for a conversation the caller participates in. It accepts `limit` (default `50`, maximum `100`) and `after_id` (the last message ID received) for polling older or newer messages.
+`GET /api/conversations/{id}/messages` returns messages in ascending ID order for a conversation the caller participates in. It accepts `limit` (default `50`, maximum `100`) and `after_id` (the last message ID received) for polling newer messages. Conversation participants include `username` and `is_mine`; each message includes `sender_username` so clients can label both sides of the chat.
 
 `POST /api/conversations/{id}/messages` sends a message to an active conversation. It requires authentication and membership in that conversation.
 
